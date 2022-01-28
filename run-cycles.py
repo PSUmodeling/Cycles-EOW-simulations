@@ -221,17 +221,18 @@ def run_cycles(params):
             "-d",
             "./input/weather/"
         ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ## Some locations in the lookup table are sea points in the CLM grids, which do not have weather files. If so,
         ## skip the grid
         if not os.path.exists(f"input/weather/{weather}"):
+            print(f"Skip {grid} due to unavailable weather file")
             continue
 
         months = calculate_months_for_planting(weather, tmp_max, tmp_min)
 
         if len(months) == 0:
-            print(f"Skip {grid} due to weather")
+            print(f"Skip {grid} due to climate")
             continue
 
         ## Unzip soil file
@@ -250,7 +251,7 @@ def run_cycles(params):
                 soil,
                 "-aoa",     # Overwrite without prompt
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL)
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
             ### If soil file exists, exit the loop. Otherwise, test the next location until a soil file is found
             if os.path.exists(f"input/{soil}"):
@@ -258,7 +259,7 @@ def run_cycles(params):
 
         ## Test if a soil file has been provided. If not, skip the location
         if not os.path.exists(f"input/{soil}"):
-            print(f"Grid {grid} skipped because no soil files are available")
+            print(f"Skip {grid} due to unavailable soil file")
             continue
         else:
             print(f"Grid {grid}, soil file: {soil}")
