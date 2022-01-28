@@ -165,6 +165,7 @@ def find_optimal_planting_dates(grid, months):
         skipinitialspace=True,
     )
     df = df.rename(columns=lambda x: x.strip().lower().replace(" ", "_"))
+    df['crop'] = df['crop'].str.strip()
     df.insert(0, "grid", grid)
 
     return df
