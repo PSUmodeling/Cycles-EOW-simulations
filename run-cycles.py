@@ -17,8 +17,8 @@ Run Cycles simulations
 """
 
 SEVEN_ZIP = "./7zz"
-START_YEAR = 5
-END_YEAR = 19
+START_YEAR = "0005"
+END_YEAR = "0019"
 
 max_tmps = {
     "Maize": "-999",
@@ -128,7 +128,7 @@ def find_optimal_planting_dates(grid, months):
             ## Filter out the last year (when planting late in the year, crop may not be harvested which causes a bias
             ## towards early in the year)
             df["year"] = df["plant_date"].str[0:4]
-            df = df[df["year"] != "%4.4d" % (END_YEAR)]
+            df = df[df["year"] != "END_YEAR"]
             yield_avg[int(month) - 1] = df["grain_yield"].sum()
         except:
             continue
@@ -273,7 +273,7 @@ def run_cycles(params):
             with open(f"data/template.ctrl") as ctrl_file:
                 ctrl_src = Template(ctrl_file.read())
                 ctrl_data = {
-                    "start": str(START_YEAR),
+                    "start": START_YEAR,
                     "end": END_YEAR,
                     "operation": f"M{month}.operation",
                     #"soil": "soil/%s" % (soil),    # TEMP_DISABLED
