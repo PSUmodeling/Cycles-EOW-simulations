@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import os
 import pandas as pd
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -19,6 +20,7 @@ Run Cycles simulations
 SEVEN_ZIP = "./7zz"
 START_YEAR = "0005"
 END_YEAR = "0019"
+LUIDS = ["10", "11", "12", "20", "30", "40"]
 
 max_tmps = {
     "Maize": "-999",
@@ -184,7 +186,10 @@ def run_cycles(params):
     crop = crops[params["crop"]]
 
     # Read in look up table
-    df = pd.read_csv(f"data/{params['crop']}_10_v6_Lookup.csv")
+    frames = []
+    for id in LUIDS:
+        frames.append(pd.read_csv(f"data/{params['crop']}_{id}_v6_Lookup.csv"))
+    df = pd.concat(frames)
 
     # Get a list of grids
     grids = df["nw_cntrl_0"].unique()
@@ -239,14 +244,17 @@ def run_cycles(params):
         n = len(df.loc[grids[kgrid]].shape)
         for kloc in range(n):
             if n == 1:  # Only one location in the grid
-                soil = df.loc[grids[kgrid]]["avg_soil_file"]
+                soil = df.loc[grids[kgrid]]["avg_soil_file"]        # This is a bug in the lookup table. Column "avg_soil_file" contains major, and vice versa
             else:
                 soil = df.loc[grids[kgrid]]["avg_soil_file"][kloc]
+
+            ### Get land use ID because different land uses are contained in different soil archives
+            luid = re.search(f"{params['crop']}_v(.*?)_", soil).group(1)
 
             cmd = [
                 SEVEN_ZIP,
                 "e",
-                f"data/{params['crop']}10_v9_major.7z",
+                f"data/{params['crop']}{luid}_v9_major.7z",
                 "-oinput",
                 soil,
                 "-aoa",     # Overwrite without prompt
