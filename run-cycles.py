@@ -303,6 +303,7 @@ def run_cycles(params):
         exdf = find_optimal_planting_dates(grid, months)
 
         if exdf.empty:
+            print(f"No yield from {grid}.")
             continue
 
         output_file = f"summary/{params['scenario']}_{params['crop']}.txt"
