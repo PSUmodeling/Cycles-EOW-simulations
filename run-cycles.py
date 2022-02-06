@@ -147,6 +147,9 @@ def find_optimal_planting_dates(grid, months):
     for month in months:
         month = int(month) - 1
 
+        if yield_avg[month] <= 0.0:
+            continue
+
         ## Calculate X-month moving average yield
         m = month - 12 if month >= 12 - HALF_WINDOW else month  # Adjust to avoid using indices larger than 11
 
