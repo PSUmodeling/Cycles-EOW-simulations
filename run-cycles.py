@@ -21,6 +21,7 @@ SEVEN_ZIP = "./7zz"
 START_YEAR = "0005"
 END_YEAR = "0019"
 LUIDS = ["10", "11", "12", "20", "30", "40"]
+CYCLES = "./bin/Cycles"
 
 max_tmps = {
     "Maize": "-999",
@@ -298,7 +299,7 @@ def run_cycles(params):
 
             ### Run Cycles
             cmd = [
-                "./Cycles",
+                CYCLES,
                 "-bs",
                 f"{grid}_M{month}",
             ]

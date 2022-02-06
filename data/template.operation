@@ -6,17 +6,6 @@
 TILLAGE
 YEAR                1
 DOY                 $doy_start
-TOOL                Kill_Crop
-DEPTH               0.00        # m
-SOIL_DISTURB_RATIO  0
-MIXING_EFFICIENCY   0
-CROP_NAME           All
-FRAC_THERMAL_TIME   0.0
-KILL_EFFICIENCY     0.0
-
-TILLAGE
-YEAR                1
-DOY                 $doy_start
 TOOL                Planter_double_disk_opnr
 DEPTH               0.03        # m
 SOIL_DISTURB_RATIO  5
