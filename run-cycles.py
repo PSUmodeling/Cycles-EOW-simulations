@@ -86,6 +86,8 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
 def convert_soil(soil):
     """Convert soil files in database to latest Cycles format
     """
+    NO3 = ["10", "10", "7", "4", "4", "4"]
+
     # Read original soil file
     with open(f"input/{soil}", "r") as fp:
         soil_str = [line.strip() for line in fp if line.strip() and line.strip()[0] != "#"]
@@ -105,7 +107,8 @@ def convert_soil(soil):
         for kline in range(4, len(soil_str)):
             tmp = soil_str[kline].split()[0:8]
             tmp.append("-999")  # Add SON
-            tmp.extend(soil_str[kline].split()[8:10])
+            tmp.append(NO3[int(soil_str[kline].split()[0]) - 1])    # Add NO3
+            tmp.append("1")  # Add NH4
             tmp.extend(["0.0", "0.0"])  # Add bypass parameters
             fp.write("\t".join(tmp) + "\n")
 
@@ -192,7 +195,7 @@ def run_cycles(params):
     # Read in look up table
     frames = []
     for id in LUIDS:
-        frames.append(pd.read_csv(f"data/{params['crop']}_{id}_v6_Lookup.csv"))
+        frames.append(pd.read_csv(f"data/{params['crop']}_v{id}_v9_Lookup.csv"))
     df = pd.concat(frames)
 
     # Get a list of grids
@@ -217,7 +220,7 @@ def run_cycles(params):
     # Run each grid
     for kgrid in range(len(grids)):
         ## Pick one location in the grid for soil file
-        grid = grids[kgrid][len("nw_cntrl_03."):-8]
+        grid = grids[kgrid]
 
         ## Unzip weather file
         weather = f"{params['scenario']}_{grid}.weather"
@@ -248,9 +251,9 @@ def run_cycles(params):
         n = len(df.loc[grids[kgrid]].shape)
         for kloc in range(n):
             if n == 1:  # Only one location in the grid
-                soil = df.loc[grids[kgrid]]["avg_soil_file"]        # This is a bug in the lookup table. Column "avg_soil_file" contains major, and vice versa
+                soil = df.loc[grids[kgrid]]["major_soil_file"]
             else:
-                soil = df.loc[grids[kgrid]]["avg_soil_file"][kloc]
+                soil = df.loc[grids[kgrid]]["major_soil_file"][kloc]
 
             ### Get land use ID because different land uses are contained in different soil archives
             luid = re.search(f"{params['crop']}_v(.*?)_", soil).group(1)
@@ -288,8 +291,8 @@ def run_cycles(params):
                     "start": START_YEAR,
                     "end": END_YEAR,
                     "operation": f"M{month}.operation",
-                    #"soil": "soil/%s" % (soil),    # TEMP_DISABLED
-                    "soil": "tmp/GenericHagerstown.soil",
+                    "soil": "soil/%s" % (soil),
+                    #"soil": "tmp/GenericHagerstown.soil",
                     "weather": f"weather/{weather}",
                 }
 
