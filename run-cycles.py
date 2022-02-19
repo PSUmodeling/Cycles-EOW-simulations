@@ -195,12 +195,12 @@ def run_cycles(params):
     # Read in look up table
     frames = []
     for id in LUIDS:
-        frames.append(pd.read_csv(f"data/{params['crop']}_v{id}_v9_Lookup.csv"))
+        frames.append(pd.read_csv(f"data/{params['crop']}_{id}_v9_Lookup.csv"))
     df = pd.concat(frames)
 
     # Get a list of grids
-    grids = df["nw_cntrl_0"].unique()
-    df.set_index(["nw_cntrl_0"], inplace=True)
+    grids = df["CLM_grid"].unique()
+    df.set_index(["CLM_grid"], inplace=True)
 
     # Create operation files
     for month in range(1, 13):
