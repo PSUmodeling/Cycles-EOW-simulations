@@ -11,7 +11,6 @@ To run the simulations, soil file and weather file archives need to be provided 
 To run the code,
 
 ```shell
-module load python/3.6.8
 module load anaconda3
 
 ./run-cycles.py --crop Maize --scenario nw_cntrl_03

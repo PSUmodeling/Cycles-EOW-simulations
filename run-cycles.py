@@ -22,26 +22,38 @@ START_YEAR = "0005"
 END_YEAR = "0019"
 LUIDS = ["10", "11", "12", "20", "30", "40"]
 CYCLES = "./bin/Cycles"
-
-max_tmps = {
+BASE_TMP = 6.0
+MAX_TMPS = {
     "Maize": "-999",
     "SpringWheat": "-999",
     "WinterWheat": "15.0",
 }
-
-min_tmps = {
+MIN_TMPS = {
     "Maize": "12.0",
     "SpringWheat": "5.0",
     "WinterWheat": "-999",
 }
-
-crops = {
+CROPS = {
     "Maize": "CornRM.90",
     "SpringWheat": "SpringWheat",
     "WinterWheat": "WinterWheat",
 }
+MATURITY_TTS = {
+    "Maize": {
+        "CornRM.115": 2425,
+        "CornRM.110": 2300,
+        "CornRM.105": 2175,
+        "CornRM.100": 2050,
+        "CornRM.95": 1925,
+        "CornRM.90": 1800,
+        "CornRM.85": 1675,
+        "CornRM.80": 1550,
+        "CornRM.75": 1425,
+        "CornRM.70": 1300,
+    }
+}
 
-doys = {
+DOYS = {
     "1": [1, 31],
     "2": [32, 59],
     "3": [60, 90],
@@ -71,16 +83,20 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
         delim_whitespace=True,
         na_values=[-999])
 
-    # Calculate month, average temperature, and 7-day moving average temperature
+    # Calculate month, average temperature, 7-day moving average temperature, thermal time
     df["month"] = df.apply(lambda x: datetime.strptime("2009-" + "%d" %(x["DOY"]), "%Y-%j").strftime("%m"), axis=1)
     df["tavg"] = 0.5 * df["TX"] + 0.5 * df["TN"]
+    df["tt"] = df.apply(lambda x: 0.0 if x["tavg"] < BASE_TMP else x["tavg"] - BASE_TMP, axis=1)
     df["tma"] = df.rolling(7, center=True, min_periods=1).mean()["tavg"]
+
+    # Calculate average thermal time
+    tt = df["tt"].sum() / (len(df) / 365.0)
 
     # Filter out days outside allowed temperature range
     df = df[(df["tma"] > tmp_min) & (df["tma"] < tmp_max)]
 
     # Return a list months that contain days inside temperature range
-    return df["month"].unique()
+    return df["month"].unique(), tt
 
 
 def convert_soil(soil):
@@ -188,9 +204,8 @@ def run_cycles(params):
 
     first = True
 
-    tmp_max = max_tmps[params["crop"]]
-    tmp_min = min_tmps[params["crop"]]
-    crop = crops[params["crop"]]
+    tmp_max = MAX_TMPS[params["crop"]]
+    tmp_min = MIN_TMPS[params["crop"]]
 
     # Read in look up table
     frames = []
@@ -202,26 +217,8 @@ def run_cycles(params):
     grids = df["CLM_grid"].unique()
     df.set_index(["CLM_grid"], inplace=True)
 
-    # Create operation files
-    for month in range(1, 13):
-        with open(f"data/template.operation") as op_file:
-            op_src = Template(op_file.read())
-            op_data = {
-                "doy_start": doys[str(month)][0],
-                "doy_end": doys[str(month)][1],
-                "max_tmp": tmp_max,
-                "min_tmp": tmp_min,
-                "crop": crops[params["crop"]],
-            }
-            result = op_src.substitute(op_data)
-            with open("./input/M%2.2d.operation" % (month), "w") as f:
-                f.write(result + "\n")
-
     # Run each grid
-    for kgrid in range(len(grids)):
-        ## Pick one location in the grid for soil file
-        grid = grids[kgrid]
-
+    for grid in grids:
         ## Unzip weather file
         weather = f"{params['scenario']}_{grid}.weather"
 
@@ -241,19 +238,38 @@ def run_cycles(params):
             print(f"Skip {grid} due to unavailable weather file")
             continue
 
-        months = calculate_months_for_planting(weather, tmp_max, tmp_min)
+        ## Find which months are potentially suitable to plant crops. Calculate thermal times for choosing RM
+        months, tt = calculate_months_for_planting(weather, tmp_max, tmp_min)
 
         if len(months) == 0:
             print(f"Skip {grid} due to climate")
             continue
 
+        # Find which RM to be planted
+        crop, _ = min(MATURITY_TTS[params["crop"]].items(), key=lambda x: abs(tt * 0.85 - x[1]))
+
+        # Create operation files
+        for month in range(1, 13):
+            with open(f"data/template.operation") as op_file:
+                op_src = Template(op_file.read())
+                op_data = {
+                    "doy_start": DOYS[str(month)][0],
+                    "doy_end": DOYS[str(month)][1],
+                    "max_tmp": tmp_max,
+                    "min_tmp": tmp_min,
+                    "crop": crop,
+                }
+                result = op_src.substitute(op_data)
+                with open("./input/M%2.2d.operation" % (month), "w") as f:
+                    f.write(result + "\n")
+
         ## Unzip soil file
-        n = len(df.loc[grids[kgrid]].shape)
+        n = len(df.loc[grid].shape)
         for kloc in range(n):
             if n == 1:  # Only one location in the grid
-                soil = df.loc[grids[kgrid]]["major_soil_file"]
+                soil = df.loc[grid]["major_soil_file"]
             else:
-                soil = df.loc[grids[kgrid]]["major_soil_file"][kloc]
+                soil = df.loc[grid]["major_soil_file"][kloc]
 
             ### Get land use ID because different land uses are contained in different soil archives
             luid = re.search(f"{params['crop']}_v(.*?)_", soil).group(1)
@@ -309,6 +325,7 @@ def run_cycles(params):
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             if result.returncode != 0:
                 print(f"Error running {grid}_M{month}")
@@ -332,6 +349,10 @@ def run_cycles(params):
         cmd = "rm input/*.soil input/*.ctrl"
         subprocess.run(cmd, shell="True")
 
+        # Remove operation files
+        cmd = "rm input/*.operation"
+        subprocess.run(cmd, shell="True")
+
         ## Remove generated soil files and weather files
         cmd = "rm input/soil/* input/weather/*"
         subprocess.run(cmd, shell="True")
@@ -339,10 +360,6 @@ def run_cycles(params):
         ## Remove output files
         cmd = "rm -r output/*"
         subprocess.run(cmd, shell="True")
-
-    # Remove operation files
-    cmd = "rm input/*.operation"
-    subprocess.run(cmd, shell="True")
 
 
 def _main():
