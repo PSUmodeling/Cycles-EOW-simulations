@@ -17,7 +17,7 @@ from string import Template
 Run Cycles simulations
 """
 
-SEVEN_ZIP = "./7zz"
+SEVEN_ZIP = "7zzs"
 START_YEAR = "0005"
 END_YEAR = "0019"
 LUIDS = ["10", "11", "12", "20", "30", "40"]
