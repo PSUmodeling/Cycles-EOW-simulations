@@ -182,6 +182,18 @@ def find_optimal_planting_dates(grid, months):
         elif yield_ma == max_yield and max_yield > -999:
             ref_month = month + 1 if yield_avg[m] > yield_avg[ref_month - 1] else ref_month
 
+    # Run Cycles again with spin-up
+    cmd = [
+        CYCLES,
+        "-bs",
+        f"{grid}_M{ref_month}",
+    ]
+    subprocess.run(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
     # Return season file with best yield
     df = pd.read_csv("output/%s_M%2.2d/season.txt" % (grid, ref_month),
         sep="\t",
@@ -319,7 +331,7 @@ def run_cycles(params):
             ### Run Cycles
             cmd = [
                 CYCLES,
-                "-bs",
+                "-b",
                 f"{grid}_M{month}",
             ]
             result = subprocess.run(
