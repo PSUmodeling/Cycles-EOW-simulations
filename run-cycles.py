@@ -75,9 +75,9 @@ LOOKUP = lambda crop: f'./data/{crop}_rainfed_eow_lookup_3.0.csv'
 SOIL_ARCHIVE = lambda crop: f'./data/{crop}_rainfed_global_soil_3.0.7z'
 WEATHER_ARCHIVE = lambda scenario: f'./data/{scenario}.zip'
 
-RM_CONTROL_SOIL = 'rm input/*.ctrl input/*.soil'
-RM_OUTPUT = 'rm -r output/*'
-RM_OPERATION = 'rm input/*.operation'
+RM_CONTROL_SOIL = 'rm -f input/*.ctrl input/*.soil'
+RM_OUTPUT = 'rm -fr output/*'
+RM_OPERATION = 'rm -f input/*.operation'
 
 def calculate_months_for_planting(weather, tmp_max, tmp_min):
     """Calculate months in which crops can be planted
@@ -214,8 +214,14 @@ def run_cycles(params):
     for _, row in df.iterrows():
         gid = row['GID']
 
-        ## Get weather file from archive
         weather = f'{params["scenario"]}_{row["Weather"]}.weather'
+        soil = row['Soil']
+
+        print(
+            f'{gid} - [{weather}, {soil}] - ',
+            end=''
+        )
+
         #cmd = [
         #    'unzip',
         #    '-oj',
@@ -230,11 +236,10 @@ def run_cycles(params):
         #    stderr=subprocess.DEVNULL,
         #)
         if not os.path.exists(f'input/weather/{weather}'):
-            print(f'Skip {gid} due to unavailable weather file')
+            print(f'Weather file error')
             continue
 
         ## Get soil file from archive
-        soil = row['Soil']
         #cmd = [
         #    SEVEN_ZIP,
         #    'e',
@@ -250,17 +255,16 @@ def run_cycles(params):
         #)
 
         if not os.path.exists(f'input/soil/{soil}'):
-            print(f'Skip {gid} due to unavailable soil file')
+            print(f'Soil file error')
             continue
 
         ## Find which months are potentially suitable to plant crops. Calculate thermal times for choosing RM
         months, tt = calculate_months_for_planting(weather, tmp_max, tmp_min)
 
         if len(months) == 0:
-            print(f'Skip {gid} due to climate')
+            print(f'Unsuitable climate')
             continue
 
-        print(f'{gid} - weather: {weather}, soil: {soil}')
 
         # Find which RM to be planted
         crop, _ = min(MATURITY_TTS[params['crop']].items(), key=lambda x: abs(tt * 0.85 - x[1]))
@@ -309,29 +313,31 @@ def run_cycles(params):
                 stderr=subprocess.DEVNULL,
             )
             if result.returncode != 0:
-                print(f'Error running {gid}_M{month}')
-                continue
-
-        ## Read season files and find optimal planting months
-        exdf = find_optimal_planting_dates(gid, months)
-
-        if exdf.empty:
-            print(f'No yield from {gid}.')
-            continue
-
-        if first:
-            exdf.to_csv(
-                summary_fp,
-                index=False,
-            )
-            first = False
+                print(f'Cycles error')
+                break
         else:
-            exdf.to_csv(
-                summary_fp,
-                mode='a',
-                header=False,
-                index=False,
-            )
+            ## Read season files and find optimal planting months
+            exdf = find_optimal_planting_dates(gid, months)
+
+            if exdf.empty:
+                print(f'No yield')
+                continue
+            else:
+                print('Success')
+
+            if first:
+                exdf.to_csv(
+                    summary_fp,
+                    index=False,
+                )
+                first = False
+            else:
+                exdf.to_csv(
+                    summary_fp,
+                    mode='a',
+                    header=False,
+                    index=False,
+                )
 
         ## Remove generated control files
         subprocess.run(
