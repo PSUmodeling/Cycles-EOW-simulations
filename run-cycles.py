@@ -222,37 +222,9 @@ def run_cycles(params):
             end=''
         )
 
-        #cmd = [
-        #    'unzip',
-        #    '-oj',
-        #    WEATHER_ARCHIVE(params['scenario']),
-        #    f'{params["scenario"]}/{weather}',
-        #    '-d',
-        #    './input/weather/'
-        #]
-        #subprocess.run(
-        #    cmd,
-        #    stdout=subprocess.DEVNULL,
-        #    stderr=subprocess.DEVNULL,
-        #)
         if not os.path.exists(f'input/weather/{weather}'):
             print(f'Weather file error')
             continue
-
-        ## Get soil file from archive
-        #cmd = [
-        #    SEVEN_ZIP,
-        #    'e',
-        #    SOIL_ARCHIVE(params['crop']),
-        #    '-oinput/soil',
-        #    soil,
-        #    '-aoa',     # Overwrite without prompt
-        #]
-        #subprocess.run(
-        #    cmd,
-        #    stdout=subprocess.DEVNULL,
-        #    stderr=subprocess.DEVNULL,
-        #)
 
         if not os.path.exists(f'input/soil/{soil}'):
             print(f'Soil file error')
@@ -356,13 +328,6 @@ def run_cycles(params):
         RM_OPERATION,
         shell='True',
     )
-
-    ### Remove generated soil files and weather files
-    #cmd = 'rm input/soil/* input/weather/*'
-    #subprocess.run(
-    #    cmd,
-    #    shell='True',
-    #)
 
 
 def _main():
