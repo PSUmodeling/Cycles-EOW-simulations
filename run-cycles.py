@@ -75,6 +75,9 @@ LOOKUP = lambda crop: f'./data/{crop}_rainfed_eow_lookup_3.0.csv'
 SOIL_ARCHIVE = lambda crop: f'./data/{crop}_rainfed_global_soil_3.0.7z'
 WEATHER_ARCHIVE = lambda scenario: f'./data/{scenario}.zip'
 
+RM_CONTROL_SOIL = 'rm input/*.ctrl input/*.soil'
+RM_OUTPUT = 'rm -r output/*'
+RM_OPERATION = 'rm input/*.operation'
 
 def calculate_months_for_planting(weather, tmp_max, tmp_min):
     """Calculate months in which crops can be planted
@@ -195,6 +198,8 @@ def run_cycles(params):
     os.makedirs('input/weather', exist_ok=True)
     os.makedirs('summary', exist_ok=True)
 
+    summary_fp = f'summary/{params["scenario"]}_{params["crop"]}.txt'
+
     first = True
 
     tmp_max = MAX_TMPS[params['crop']]
@@ -314,30 +319,37 @@ def run_cycles(params):
             print(f'No yield from {gid}.')
             continue
 
-        output_file = f'summary/{params["scenario"]}_{params["crop"]}.txt'
         if first:
-            exdf.to_csv(output_file, index=False)
+            exdf.to_csv(
+                summary_fp,
+                index=False,
+            )
             first = False
         else:
-            exdf.to_csv(output_file, mode='a', header=False, index=False)
+            exdf.to_csv(
+                summary_fp,
+                mode='a',
+                header=False,
+                index=False,
+            )
 
         ## Remove generated control files
-        cmd = 'rm input/*.ctrl input/*.soil'
         subprocess.run(
-            cmd,
+            RM_CONTROL_SOIL,
             shell='True',
         )
 
         ## Remove output files
-        cmd = 'rm -r output/*'
         subprocess.run(
-            cmd,
+            RM_OUTPUT,
             shell='True',
         )
 
     ## Remove operation files
-    cmd = 'rm input/*.operation'
-    subprocess.run(cmd, shell='True')
+    subprocess.run(
+        RM_OPERATION,
+        shell='True',
+    )
 
     ### Remove generated soil files and weather files
     #cmd = 'rm input/soil/* input/weather/*'
