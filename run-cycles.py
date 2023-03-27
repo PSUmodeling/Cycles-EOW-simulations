@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import numpy as np
 import os
 import pandas as pd
 import subprocess
 from datetime import datetime
-from io import StringIO
 from string import Template
 
 """Run Cycles simulations for different crops under different nuclear war scenarios
@@ -14,7 +14,6 @@ from string import Template
 Run Cycles simulations
 """
 
-SEVEN_ZIP = '7zzs'
 START_YEAR = '0005'
 END_YEAR = '0019'
 CYCLES = './bin/Cycles'
@@ -30,34 +29,34 @@ MIN_TMPS = {
     'winterWheat': '-999',
 }
 CROPS = {
-    'maize': 'CornRM.90',
-    'springwheat': 'SpringWheat',
-    'winterwheat': 'WinterWheat',
+    'maize',
+    'springwheat',
+    'winterwheat',
 }
 MATURITY_TTS = {
     'maize': {
-        'CornRM.115': 2425,
-        'CornRM.110': 2300,
-        'CornRM.105': 2175,
-        'CornRM.100': 2050,
-        'CornRM.95': 1925,
-        'CornRM.90': 1800,
-        'CornRM.85': 1675,
-        'CornRM.80': 1550,
-        'CornRM.75': 1425,
-        'CornRM.70': 1300,
+        'CornRM.115': 2425.0,
+        'CornRM.110': 2300.0,
+        'CornRM.105': 2175.0,
+        'CornRM.100': 2050.0,
+        'CornRM.95': 1925.0,
+        'CornRM.90': 1800.0,
+        'CornRM.85': 1675.0,
+        'CornRM.80': 1550.0,
+        'CornRM.75': 1425.0,
+        'CornRM.70': 1300.0,
     }
 }
 DOYS = {
-    '1': [1, 31],
-    '2': [32, 59],
-    '3': [60, 90],
-    '4': [91, 120],
-    '5': [121, 151],
-    '6': [152, 181],
-    '7': [182, 212],
-    '8': [213, 243],
-    '9': [244, 273],
+    '01': [1, 31],
+    '02': [32, 59],
+    '03': [60, 90],
+    '04': [91, 120],
+    '05': [121, 151],
+    '06': [152, 181],
+    '07': [182, 212],
+    '08': [213, 243],
+    '09': [244, 273],
     '10': [274, 304],
     '11': [305, 334],
     '12': [335, 365],
@@ -72,30 +71,26 @@ SCENARIOS = [
     'nw_ur_150_07',
 ]
 LOOKUP = lambda crop: f'./data/{crop}_rainfed_eow_lookup_3.0.csv'
-SOIL_ARCHIVE = lambda crop: f'./data/{crop}_rainfed_global_soil_3.0.7z'
-WEATHER_ARCHIVE = lambda scenario: f'./data/{scenario}.zip'
 
-RM_CONTROL_SOIL = 'rm -f input/*.ctrl input/*.soil'
-RM_OUTPUT = 'rm -fr output/*'
+RM_CYCLES_IO = 'rm -fr input/*.ctrl input/*.soil output/*'
 RM_OPERATION = 'rm -f input/*.operation'
 
 def calculate_months_for_planting(weather, tmp_max, tmp_min):
     """Calculate months in which crops can be planted
     """
-    tmp_max = float(tmp_max) if tmp_max != '-999' else 100  # -999 is the special case that disables max temperature
+    tmp_max = float(tmp_max) if tmp_max != '-999' else 100.0    # -999 is the special case that disables max temperature
     tmp_min = float(tmp_min)
 
     # Read weather file with comment lines removed
-    with open(f'input/weather/{weather}', 'r') as fp:
-        weather_str = [line.strip() for line in fp if line.strip() and line.strip()[0] != '#']
-
-    # Read weather file into dataframe
-    df = pd.read_csv(StringIO('\n'.join(weather_str[3:])),
+    df = pd.read_csv(
+        f'input/weather/{weather}',
+        comment='#',
+        skiprows=range(0, 4),
         delim_whitespace=True,
-        na_values=[-999])
+        na_values=[-999],
+    )
 
     # Calculate month, average temperature, 7-day moving average temperature, thermal time
-    df['month'] = df.apply(lambda x: datetime.strptime('2009-' + '%d' %(x['DOY']), '%Y-%j').strftime('%m'), axis=1)
     df['tavg'] = 0.5 * df['TX'] + 0.5 * df['TN']
     df['tt'] = df.apply(lambda x: 0.0 if x['tavg'] < BASE_TMP else x['tavg'] - BASE_TMP, axis=1)
     df['tma'] = df.rolling(7, center=True, min_periods=1).mean()['tavg']
@@ -105,6 +100,7 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
 
     # Filter out days outside allowed temperature range
     df = df[(df['tma'] > tmp_min) & (df['tma'] < tmp_max)]
+    df['month'] = df.apply(lambda x: datetime.strptime('2009-' + '%d' %(x['DOY']), '%Y-%j').strftime('%m'), axis=1)
 
     # Return a list months that contain days inside temperature range
     return df['month'].unique(), tt
@@ -125,11 +121,11 @@ def find_optimal_planting_dates(gid, months):
             df = pd.read_csv(
                 f'output/{gid}_M{month}/season.txt',
                 sep='\t',
-                header=0,
-                skiprows=[1],
+                usecols=[2, 5],
+                names=['plant_date', 'grain_yield'],
+                skiprows=[0, 1],
                 skipinitialspace=True,
             )
-            df = df.rename(columns=lambda x: x.strip().lower().replace(' ', '_'))
             ## Filter out the last year (when planting late in the year, crop may not be harvested which causes a bias
             ## towards early in the year)
             df['year'] = df['plant_date'].str[0:4]
@@ -192,7 +188,7 @@ def find_optimal_planting_dates(gid, months):
     return df
 
 
-def run_cycles(params):
+def main(params):
     # Create input directories
     os.makedirs('input/soil', exist_ok=True)
     os.makedirs('input/weather', exist_ok=True)
@@ -206,12 +202,15 @@ def run_cycles(params):
     tmp_min = MIN_TMPS[params['crop']]
 
     # Read in look-up table
-    df = pd.read_csv(
-        LOOKUP(params['crop']),
-    )
+    with open(LOOKUP(params['crop'])) as f:
+        reader = csv.reader(f, delimiter=',')
 
+        headers = next(reader)
+        data = [{h:x for (h,x) in zip(headers,row)} for row in reader]
+
+    summary_strs = []
     # Run each region
-    for _, row in df.iterrows():
+    for row in data:
         gid = row['GID']
 
         weather = f'{params["scenario"]}_{row["Weather"]}.weather'
@@ -237,41 +236,40 @@ def run_cycles(params):
             print(f'Unsuitable climate')
             continue
 
-
         # Find which RM to be planted
         crop, _ = min(MATURITY_TTS[params['crop']].items(), key=lambda x: abs(tt * 0.85 - x[1]))
 
         # Create operation files
-        for month in range(1, 13):
-            with open(f'data/template.operation') as op_file:
-                op_src = Template(op_file.read())
-                op_data = {
-                    'doy_start': DOYS[str(month)][0],
-                    'doy_end': DOYS[str(month)][1],
-                    'max_tmp': tmp_max,
-                    'min_tmp': tmp_min,
-                    'crop': crop,
-                }
-                result = op_src.substitute(op_data)
-                with open('./input/M%2.2d.operation' % (month), 'w') as f:
-                    f.write(result + '\n')
+        with open(f'data/template.operation') as op_file:
+            op_src = Template(op_file.read())
+
+        with open(f'data/template.ctrl') as ctrl_file:
+            ctrl_src = Template(ctrl_file.read())
 
         ## Run each month
         for month in months:
-            ### Create control file
-            with open(f'data/template.ctrl') as ctrl_file:
-                ctrl_src = Template(ctrl_file.read())
-                ctrl_data = {
-                    'start': START_YEAR,
-                    'end': END_YEAR,
-                    'operation': f'M{month}.operation',
-                    'soil': f'soil/{soil}',
-                    'weather': f'weather/{weather}',
-                }
+            op_data = {
+                'doy_start': DOYS[month][0],
+                'doy_end': DOYS[month][1],
+                'max_tmp': tmp_max,
+                'min_tmp': tmp_min,
+                'crop': crop,
+            }
+            result = op_src.substitute(op_data)
+            with open(f'./input/M{month}.operation', 'w') as f:
+                f.write(result + '\n')
 
-                result = ctrl_src.substitute(ctrl_data)
-                with open(f'./input/{gid}_M{month}.ctrl', 'w') as f:
-                    f.write(result + '\n')
+            ### Create control file
+            ctrl_data = {
+                'start': START_YEAR,
+                'end': END_YEAR,
+                'operation': f'M{month}.operation',
+                'soil': f'soil/{soil}',
+                'weather': f'weather/{weather}',
+            }
+            result = ctrl_src.substitute(ctrl_data)
+            with open(f'./input/{gid}_M{month}.ctrl', 'w') as f:
+                f.write(result + '\n')
 
             ### Run Cycles
             cmd = [
@@ -298,30 +296,23 @@ def run_cycles(params):
                 print('Success')
 
             if first:
-                exdf.to_csv(
-                    summary_fp,
-                    index=False,
+                summary_strs.append(
+                    exdf.to_csv(index=False)
                 )
                 first = False
             else:
-                exdf.to_csv(
-                    summary_fp,
-                    mode='a',
-                    header=False,
-                    index=False,
+                summary_strs.append(
+                    exdf.to_csv(header=False, index=False)
                 )
 
-        ## Remove generated control files
+        ## Remove generated input/output files
         subprocess.run(
-            RM_CONTROL_SOIL,
+            RM_CYCLES_IO,
             shell='True',
         )
 
-        ## Remove output files
-        subprocess.run(
-            RM_OUTPUT,
-            shell='True',
-        )
+    with open(summary_fp, 'w') as f:
+        f.write(''.join(summary_strs))
 
     ## Remove operation files
     subprocess.run(
@@ -335,7 +326,7 @@ def _main():
     parser.add_argument(
         '--crop',
         default='maize',
-        choices=list(CROPS.keys()),
+        choices=CROPS,
         help='Crop to be simulated',
     )
     parser.add_argument(
@@ -345,9 +336,9 @@ def _main():
         help='NW scenario',
     )
     args = parser.parse_args()
-    run_cycles(vars(args))
+
+    main(vars(args))
 
 
 if __name__ == '__main__':
     _main()
-
