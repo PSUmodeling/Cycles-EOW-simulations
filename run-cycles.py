@@ -242,7 +242,7 @@ def find_ref_month_crop(gid, weather, soil, tmp_max, tmp_min, crop):
         ### Run Cycles
         if run_cycles(not SPIN_UP, f'{gid}_M{month}') != 0:
             print(f'Cycles error')
-            break
+            return np.nan, ''
     else:
         ## Read season files and find optimal planting months
         ref_month = find_optimal_planting_dates(gid, months)
