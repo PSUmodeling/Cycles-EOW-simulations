@@ -18,6 +18,7 @@ START_YEAR = '0005'
 END_YEAR = '0019'
 CYCLES = './bin/Cycles'
 BASE_TMP = 6.0
+SPIN_UP = True
 MAX_TMPS = {
     'maize': '-999',
     'springwheat': '-999',
@@ -110,6 +111,52 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
     return months, tt
 
 
+def generate_cycles_input(gid, month, tmp_max, tmp_min, crop, soil, weather):
+    with open(f'data/template.operation') as op_file:
+        op_src = Template(op_file.read())
+
+    with open(f'data/template.ctrl') as ctrl_file:
+        ctrl_src = Template(ctrl_file.read())
+
+    op_data = {
+        'doy_start': DOYS[month][0],
+        'doy_end': DOYS[month][1],
+        'max_tmp': tmp_max,
+        'min_tmp': tmp_min,
+        'crop': crop,
+    }
+    result = op_src.substitute(op_data)
+    with open(f'./input/M{month}.operation', 'w') as f:
+        f.write(result + '\n')
+
+    ### Create control file
+    ctrl_data = {
+        'start': START_YEAR,
+        'end': END_YEAR,
+        'operation': f'M{month}.operation',
+        'soil': f'soil/{soil}',
+        'weather': f'weather/{weather}',
+    }
+    result = ctrl_src.substitute(ctrl_data)
+    with open(f'./input/{gid}_M{month}.ctrl', 'w') as f:
+        f.write(result + '\n')
+
+
+def run_cycles(spin_up, simulation):
+    cmd = [
+        CYCLES,
+        '-sb' if spin_up else '-b',
+        simulation,
+    ]
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    return result.returncode
+
+
 def find_optimal_planting_dates(gid, months):
     """Find optimal planting months/dates for each gid
 
@@ -138,9 +185,9 @@ def find_optimal_planting_dates(gid, months):
         except:
             continue
 
-    # If there is no yield from any month, return an empty dataframe
+    # If there is no yield from any month, return 0
     if not any(yield_avg):
-        return pd.DataFrame()
+        return 0
 
     # Find optimal planting months
     HALF_WINDOW = 2
@@ -165,31 +212,7 @@ def find_optimal_planting_dates(gid, months):
         elif yield_ma == max_yield and max_yield > -999:
             ref_month = month + 1 if yield_avg[m] > yield_avg[ref_month - 1] else ref_month
 
-    # Run Cycles again with spin-up
-    cmd = [
-        CYCLES,
-        '-bs',
-        f'{gid}_M{"%2.2d" % (ref_month)}',
-    ]
-    subprocess.run(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    # Return season file with best yield
-    df = pd.read_csv(
-        'output/%s_M%2.2d/season.txt' % (gid, ref_month),
-        sep='\t',
-        header=0,
-        skiprows=[1],
-        skipinitialspace=True,
-    )
-    df = df.rename(columns=lambda x: x.strip().lower().replace(' ', '_'))
-    df['crop'] = df['crop'].str.strip()
-    df.insert(0, 'gid', gid)
-
-    return df
+    return ref_month
 
 
 def main(params):
@@ -198,7 +221,7 @@ def main(params):
     os.makedirs('input/weather', exist_ok=True)
     os.makedirs('summary', exist_ok=True)
 
-    summary_fp = f'summary/{params["scenario"]}_{params["crop"]}.txt'
+    fn = f'summary/{params["scenario"]}_{params["crop"]}.csv'
 
     first = True
 
@@ -212,111 +235,83 @@ def main(params):
         headers = next(reader)
         data = [{h:x for (h,x) in zip(headers,row)} for row in reader]
 
-    summary_strs = []
-    # Run each region
-    for row in data:
-        gid = row['GID']
+    with open(fn, 'w') as summary_fp:
+        # Run each region
+        for row in data:
+            gid = row['GID']
 
-        weather = f'{params["scenario"]}_{row["Weather"]}.weather'
-        soil = row['Soil']
+            weather = f'{params["scenario"]}_{row["Weather"]}.weather'
+            soil = row['Soil']
 
-        print(
-            f'{gid} - [{weather}, {soil}] - ',
-            end=''
-        )
-
-        if not os.path.exists(f'input/weather/{weather}'):
-            print(f'Weather file error')
-            continue
-
-        if not os.path.exists(f'input/soil/{soil}'):
-            print(f'Soil file error')
-            continue
-
-        ## Find which months are potentially suitable to plant crops. Calculate thermal times for choosing RM
-        months, tt = calculate_months_for_planting(weather, tmp_max, tmp_min)
-
-        if len(months) == 0:
-            print(f'Unsuitable climate')
-            continue
-
-        # Find which RM to be planted
-        crop, _ = min(MATURITY_TTS[params['crop']].items(), key=lambda x: abs(tt * 0.85 - x[1]))
-
-        # Create operation files
-        with open(f'data/template.operation') as op_file:
-            op_src = Template(op_file.read())
-
-        with open(f'data/template.ctrl') as ctrl_file:
-            ctrl_src = Template(ctrl_file.read())
-
-        ## Run each month
-        for month in months:
-            op_data = {
-                'doy_start': DOYS[month][0],
-                'doy_end': DOYS[month][1],
-                'max_tmp': tmp_max,
-                'min_tmp': tmp_min,
-                'crop': crop,
-            }
-            result = op_src.substitute(op_data)
-            with open(f'./input/M{month}.operation', 'w') as f:
-                f.write(result + '\n')
-
-            ### Create control file
-            ctrl_data = {
-                'start': START_YEAR,
-                'end': END_YEAR,
-                'operation': f'M{month}.operation',
-                'soil': f'soil/{soil}',
-                'weather': f'weather/{weather}',
-            }
-            result = ctrl_src.substitute(ctrl_data)
-            with open(f'./input/{gid}_M{month}.ctrl', 'w') as f:
-                f.write(result + '\n')
-
-            ### Run Cycles
-            cmd = [
-                CYCLES,
-                '-b',
-                f'{gid}_M{month}',
-            ]
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+            print(
+                f'{gid} - [{weather}, {soil}] - ',
+                end=''
             )
-            if result.returncode != 0:
-                print(f'Cycles error')
-                break
-        else:
-            ## Read season files and find optimal planting months
-            exdf = find_optimal_planting_dates(gid, months)
 
-            if exdf.empty:
-                print(f'No yield')
+            if not os.path.exists(f'input/weather/{weather}'):
+                print(f'Weather file error')
                 continue
+
+            if not os.path.exists(f'input/soil/{soil}'):
+                print(f'Soil file error')
+                continue
+
+            ## Find which months are potentially suitable to plant crops. Calculate thermal times for choosing RM
+            months, tt = calculate_months_for_planting(weather, tmp_max, tmp_min)
+
+            if len(months) == 0:
+                print(f'Unsuitable climate')
+                continue
+
+            # Find which RM to be planted
+            crop, _ = min(MATURITY_TTS[params['crop']].items(), key=lambda x: abs(tt * 0.85 - x[1]))
+
+            ## Run each month
+            for month in months:
+                generate_cycles_input(gid, month, tmp_max, tmp_min, crop, soil, weather)
+
+                ### Run Cycles
+                if run_cycles(not SPIN_UP, f'{gid}_M{month}') != 0:
+                    print(f'Cycles error')
+                    break
             else:
+                ## Read season files and find optimal planting months
+                ref_month = find_optimal_planting_dates(gid, months)
+
+                if ref_month <= 0:
+                    print(f'No yield')
+                    continue
+
+                # Run Cycles again with spin-up
+                run_cycles(SPIN_UP, f'{gid}_M{"%2.2d" % (ref_month)}')
+
+                # Return season file with best yield
+                df = pd.read_csv(
+                    'output/%s_M%2.2d/season.txt' % (gid, ref_month),
+                    sep='\t',
+                    header=0,
+                    skiprows=[1],
+                    skipinitialspace=True,
+                )
+                df = df.rename(columns=lambda x: x.strip().lower().replace(' ', '_'))
+                df['crop'] = df['crop'].str.strip()
+                df.insert(0, 'gid', gid)
+
                 print('Success')
 
-            if first:
-                summary_strs.append(
-                    exdf.to_csv(index=False)
-                )
-                first = False
-            else:
-                summary_strs.append(
-                    exdf.to_csv(header=False, index=False)
-                )
+                if first:
+                    summary_strs = df.to_csv(index=False)
+                    first = False
+                else:
+                    summary_strs = df.to_csv(header=False, index=False)
 
-        ## Remove generated input/output files
-        subprocess.run(
-            RM_CYCLES_IO,
-            shell='True',
-        )
+                summary_fp.write(''.join(summary_strs))
 
-    with open(summary_fp, 'w') as f:
-        f.write(''.join(summary_strs))
+            ## Remove generated input/output files
+            subprocess.run(
+                RM_CYCLES_IO,
+                shell='True',
+            )
 
     ## Remove operation files
     subprocess.run(
