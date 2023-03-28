@@ -100,10 +100,14 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
 
     # Filter out days outside allowed temperature range
     df = df[(df['tma'] > tmp_min) & (df['tma'] < tmp_max)]
-    df['month'] = df.apply(lambda x: datetime.strptime('2009-' + '%d' %(x['DOY']), '%Y-%j').strftime('%m'), axis=1)
+    if df.empty:
+        months = []
+    else:
+        df['month'] = df.apply(lambda x: datetime.strptime('2009-' + '%d' %(x['DOY']), '%Y-%j').strftime('%m'), axis=1)
+        months = df['month'].unique()
 
     # Return a list months that contain days inside temperature range
-    return df['month'].unique(), tt
+    return months, tt
 
 
 def find_optimal_planting_dates(gid, months):
