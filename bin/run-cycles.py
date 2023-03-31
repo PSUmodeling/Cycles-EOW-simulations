@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import subprocess
 from datetime import datetime
+from math import inf
 from string import Template
 
 """Run Cycles simulations for different crops under different nuclear war scenarios
@@ -233,7 +234,12 @@ def find_ref_month_crop(gid, weather, soil, tmp_max, tmp_min, crop):
         return np.nan, ''
 
     # Find which RM to be planted
+    ## Find the RM type with closest thermal time
+    ## https://stackoverflow.com/questions/52844099/finding-the-closest-value-in-a-python-dictionary-and-returning-its-key
     crop_rm, _ = min(MATURITY_TTS[crop].items(), key=lambda x: abs(tt * 0.85 - x[1]))
+    ## Find the RM type with closest thermal time that is greater than the target thermal time
+    ## https://stackoverflow.com/questions/68594435/find-the-number-closest-to-and-greater-than-an-input-number-in-a-dictionary
+    #crop_rm, _ = min(MATURITY_TTS[crop].items(), key=lambda x: tt * 0.85 - x[1] if tt * 0.85 - x[1] > 0 else inf)
 
     ## Run each month
     for month in months:
