@@ -296,11 +296,11 @@ def main(params):
                     print('Success')
 
                     if first:
-                        output_fp.write(','.join(['GID', 'Weather', 'Soil', 'RefMonth', 'Crop']))
+                        output_fp.write(','.join(['GID', 'Weather', 'Soil', 'AreaKm2', 'AreaFraction', 'RefMonth', 'Crop']))
                         output_fp.write('\n')
                         first = False
 
-                    strs = [gid, row['Weather'], soil, str(ref_month), crop_rm]
+                    strs = [gid, row['Weather'], soil, row['AreaKm2'], row['AreaFraction'], str(ref_month), crop_rm]
                     output_fp.write(','.join(strs))
                     output_fp.write('\n')
             else:
@@ -322,6 +322,8 @@ def main(params):
                 df = df.rename(columns=lambda x: x.strip().lower().replace(' ', '_'))
                 df['crop'] = df['crop'].str.strip()
                 df.insert(0, 'gid', gid)
+                df.insert(1, 'area_km2', row['AreaKm2'])
+                df.insert(2, 'area_fraction', row['AreaFraction'])
 
                 print('Success')
 
