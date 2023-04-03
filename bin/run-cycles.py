@@ -171,7 +171,7 @@ def run_cycles(spin_up, simulation):
     return result.returncode
 
 
-def find_optimal_planting_dates(gid, months):
+def find_optimal_planting_dates(gid, end_year, months):
     """Find optimal planting months/dates for each gid
 
     Read season files from 12 planting months and find the month with the best yield with a X-month moving window
@@ -194,7 +194,7 @@ def find_optimal_planting_dates(gid, months):
             ## Filter out the last year (when planting late in the year, crop may not be harvested which causes a bias
             ## towards early in the year)
             df['year'] = df['plant_date'].str[0:4]
-            df = df[df['year'] != 'END_YEAR']
+            df = df[df['year'] != end_year]
             yield_avg[int(month) - 1] = df['grain_yield'].sum()
         except:
             continue
@@ -263,7 +263,7 @@ def find_ref_month_crop(gid, crop, soil, weather, tmp_max, tmp_min, start_year, 
             return np.nan, ''
     else:
         ## Read season files and find optimal planting months
-        ref_month = find_optimal_planting_dates(gid, months)
+        ref_month = find_optimal_planting_dates(gid, end_year, months)
 
         if ref_month <= 0:
             print(f'No yield')
