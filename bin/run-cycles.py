@@ -70,9 +70,9 @@ SCENARIOS = [
     'nw_targets_05',
     'nw_ur_150_07',
 ]
-LOOKUP = lambda crop: f'./data/{crop}_rainfed_eow_lookup_3.0.csv'
-RUNS = lambda scenario, crop: f'./data/{scenario}_{crop}_runs.csv'
-SUMMARY = lambda scenario, crop: f'summary/{scenario}_{crop}.csv'
+LOOKUP = lambda lut, crop: f'./data/{crop}_rainfed_{lut.lower()}_lookup_3.0.csv'
+RUNS = lambda lut, scenario, crop: f'./data/{lut.lower()}_{scenario}_{crop}_runs.csv' if lut == 'EOW' else f'./data/{lut.lower()}_{crop}_runs.csv'
+SUMMARY = lambda lut, scenario, crop: f'summary/{lut.lower()}_{scenario}_{crop}.csv' if lut == 'EOW' else f'summary/{lut.lower()}_{crop}.csv'
 
 RM_CYCLES_IO = 'rm -fr input/*.ctrl input/*.soil output/*'
 RM_OPERATION = 'rm -f input/*.operation'
@@ -261,6 +261,7 @@ def find_ref_month_crop(gid, crop, soil, weather, tmp_max, tmp_min, start_year, 
 def main(params):
 
     pre_run = params['pre_run']
+    lut = params['lut']
     scenario = params['scenario']
     crop = params['crop']
     start_year = '%4.4d' % params['start']
@@ -271,10 +272,10 @@ def main(params):
     tmp_max = MAX_TMPS[crop]
     tmp_min = MIN_TMPS[crop]
 
-    fn = RUNS(scenario, crop) if pre_run else SUMMARY(scenario, crop)
+    fn = RUNS(lut, scenario, crop) if pre_run else SUMMARY(lut, scenario, crop)
 
     # Read in look-up table or run table
-    with open(LOOKUP(crop) if pre_run else RUNS(scenario, crop)) as f:
+    with open(LOOKUP(lut, crop) if pre_run else RUNS(lut, scenario, crop)) as f:
         reader = csv.reader(f, delimiter=',')
 
         headers = next(reader)
@@ -287,7 +288,7 @@ def main(params):
         for row in data:
             gid = row['GID']
 
-            weather = f'{scenario}_{row["Weather"]}.weather'
+            weather = f'{scenario}_{row["Weather"]}.weather' if lut == 'EOW' else row['Weather']
             soil = row['Soil']
 
             print(
@@ -363,10 +364,16 @@ def _main():
         help='Crop to be simulated',
     )
     parser.add_argument(
+        '--lut',
+        default='global',
+        choices=['global', 'CONUS', 'EOW'],
+        help='Look-up table to be used',
+    )
+    parser.add_argument(
         '--scenario',
         default='nw_cntrl_03',
         choices=SCENARIOS,
-        help='NW scenario',
+        help='EOW NW scenario',
     )
     parser.add_argument(
         '--start',
