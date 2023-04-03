@@ -84,12 +84,26 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
     tmp_min = float(tmp_min)
 
     # Read weather file with comment lines removed
+    cols = {
+        'YEAR': int,
+        'DOY': int,
+        'PP': float,
+        'TX': float,
+        'TN': float,
+        'SOLAR': float,
+        'RHX': float,
+        'RHN': float,
+        'WIND': float,
+    }
     df = pd.read_csv(
         f'input/weather/{weather}',
-        skiprows=range(0, 4),
+        names=cols.keys(),
+        comment='#',
         delim_whitespace=True,
         na_values=[-999],
     )
+    df = df.iloc[4:, :]
+    df = df.astype(cols)
 
     # Calculate month, average temperature, 7-day moving average temperature, thermal time
     df['tavg'] = 0.5 * df['TX'] + 0.5 * df['TN']
