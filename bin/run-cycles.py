@@ -15,8 +15,6 @@ from string import Template
 Run Cycles simulations
 """
 
-START_YEAR = '0005'
-END_YEAR = '0019'
 CYCLES = './bin/Cycles'
 BASE_TMP = 6.0
 SPIN_UP = True
@@ -113,7 +111,7 @@ def calculate_months_for_planting(weather, tmp_max, tmp_min):
     return months, tt
 
 
-def generate_cycles_input(gid, month, tmp_max, tmp_min, crop, soil, weather):
+def generate_cycles_input(gid, crop, soil, weather, tmp_max, tmp_min, start_year, end_year, month):
     with open(f'data/template.operation') as op_file:
         op_src = Template(op_file.read())
 
@@ -133,8 +131,8 @@ def generate_cycles_input(gid, month, tmp_max, tmp_min, crop, soil, weather):
 
     ### Create control file
     ctrl_data = {
-        'start': START_YEAR,
-        'end': END_YEAR,
+        'start': start_year,
+        'end': end_year,
         'operation': f'M{month}.operation',
         'soil': f'soil/{soil}',
         'weather': f'weather/{weather}',
@@ -217,7 +215,7 @@ def find_optimal_planting_dates(gid, months):
     return ref_month
 
 
-def find_ref_month_crop(gid, weather, soil, tmp_max, tmp_min, crop):
+def find_ref_month_crop(gid, crop, soil, weather, tmp_max, tmp_min, start_year, end_year):
     if not os.path.exists(f'input/weather/{weather}'):
         print(f'Weather file error')
         return np.nan, ''
@@ -243,7 +241,7 @@ def find_ref_month_crop(gid, weather, soil, tmp_max, tmp_min, crop):
 
     ## Run each month
     for month in months:
-        generate_cycles_input(gid, month, tmp_max, tmp_min, crop_rm, soil, weather)
+        generate_cycles_input(gid, crop_rm, soil, weather, tmp_max, tmp_min, start_year, end_year, month)
 
         ### Run Cycles
         if run_cycles(not SPIN_UP, f'{gid}_M{month}') != 0:
@@ -265,6 +263,8 @@ def main(params):
     pre_run = params['pre_run']
     scenario = params['scenario']
     crop = params['crop']
+    start_year = '%4.4d' % params['start']
+    end_year = '%4.4d' % params['end']
 
     os.makedirs('summary', exist_ok=True)
 
@@ -296,7 +296,7 @@ def main(params):
             )
 
             if pre_run:
-                ref_month, crop_rm = find_ref_month_crop(gid, weather, soil, tmp_max, tmp_min, crop)
+                ref_month, crop_rm = find_ref_month_crop(gid, crop, soil, weather, tmp_max, tmp_min, start_year, end_year)
 
                 if not np.isnan(ref_month):
                     print('Success')
@@ -314,7 +314,7 @@ def main(params):
                 crop_rm = row['Crop']
 
                 # Run Cycles again with spin-up
-                generate_cycles_input(gid, ref_month, tmp_max, tmp_min, crop_rm, soil, weather)
+                generate_cycles_input(gid, crop_rm, soil, weather, tmp_max, tmp_min, start_year, end_year, ref_month)
                 run_cycles(SPIN_UP, f'{gid}_M{ref_month}')
 
                 # Return season file with best yield
@@ -367,6 +367,18 @@ def _main():
         default='nw_cntrl_03',
         choices=SCENARIOS,
         help='NW scenario',
+    )
+    parser.add_argument(
+        '--start',
+        required=True,
+        type=int,
+        help='Start year of simulation (use 0005 for EOW simulations)',
+    )
+    parser.add_argument(
+        '--end',
+        required=True,
+        type=int,
+        help='End year of simulation (use 0019 for EOW simulations)',
     )
     parser.add_argument(
         '--pre-run',
