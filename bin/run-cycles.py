@@ -70,7 +70,7 @@ SCENARIOS = [
     'nw_targets_05',
     'nw_ur_150_07',
 ]
-LOOKUP = lambda lut, crop: f'./data/{crop}_rainfed_{lut.lower()}_lookup_3.0.csv'
+LOOKUP = lambda lut, crop: f'./data/{crop}_rainfed_{lut.lower()}_lookup_3.1.csv'
 RUNS = lambda lut, scenario, crop: f'./data/{lut.lower()}_{scenario}_{crop}_runs.csv' if lut == 'EOW' else f'./data/{lut.lower()}_{crop}_runs.csv'
 SUMMARY = lambda lut, scenario, crop: f'summary/{lut.lower()}_{scenario}_{crop}.csv' if lut == 'EOW' else f'summary/{lut.lower()}_{crop}.csv'
 
