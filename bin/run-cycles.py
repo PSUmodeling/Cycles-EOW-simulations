@@ -380,7 +380,7 @@ def _main():
     parser.add_argument(
         '--lut',
         default='global',
-        choices=['global', 'CONUS', 'EOW'],
+        choices=['global', 'CONUS', 'EOW', 'test'],
         help='Look-up table to be used',
     )
     parser.add_argument(
