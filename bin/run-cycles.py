@@ -300,8 +300,9 @@ def main(params):
     with open(fn, 'w') as output_fp:
         # Run each region
         for row in data:
-            gid = row['GID']
+            if not row: continue    # Skip empty lines
 
+            gid = row['GID']
             weather = f'{scenario}_{row["Weather"]}.weather' if lut == 'EOW' else row['Weather']
             soil = row['Soil']
 
