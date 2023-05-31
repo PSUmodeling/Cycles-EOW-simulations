@@ -133,6 +133,8 @@ input/*
 !/input/GenericCrops.crop
 output/
 summary/
+data/*_runs.csv
 *.zip
 *.7z
 *.pbs*
+slurm*.out
