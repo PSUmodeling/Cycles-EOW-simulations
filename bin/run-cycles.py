@@ -71,7 +71,7 @@ SCENARIOS = [
     'nw_ur_150_07',
 ]
 LOOKUP = lambda lut, crop: f'./data/{crop}_rainfed_{lut.lower()}_lookup_3.2.csv'
-RUNS = lambda lut, scenario, crop: f'./data/{lut.lower()}_{scenario}_{crop}_runs.csv' if lut == 'EOW' else f'./data/{lut.lower()}_{crop}_runs.csv'
+RUNS = lambda lut, crop: f'./data/{lut.lower()}_{crop}_runs.csv'
 SUMMARY = lambda lut, scenario, crop: f'summary/{lut.lower()}_{scenario}_{crop}.csv' if lut == 'EOW' else f'summary/{lut.lower()}_{crop}.csv'
 
 RM_CYCLES_IO = 'rm -fr input/*.ctrl input/*.soil output/*'
@@ -286,10 +286,10 @@ def main(params):
     tmp_max = MAX_TMPS[crop]
     tmp_min = MIN_TMPS[crop]
 
-    fn = RUNS(lut, scenario, crop) if pre_run else SUMMARY(lut, scenario, crop)
+    fn = RUNS(lut, crop) if pre_run else SUMMARY(lut, scenario, crop)
 
     # Read in look-up table or run table
-    with open(LOOKUP(lut, crop) if pre_run else RUNS(lut, scenario, crop)) as f:
+    with open(LOOKUP(lut, crop) if pre_run else RUNS(lut, crop)) as f:
         reader = csv.reader(f, delimiter=',')
 
         headers = next(reader)
